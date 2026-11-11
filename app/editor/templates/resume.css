@@ -1,0 +1,90 @@
+﻿/* Jake's Resume inspired typography. See ATTRIBUTION.md. */
+.resume-sheet-container {
+  width: 100%;
+  max-width: 210mm;
+  margin-inline: auto;
+  container-type: inline-size;
+}
+
+.resume-sheet {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 141.4286cqw;
+  padding: 6.0476%; /* 12.7 mm on a 210 mm page */
+  background: white;
+  color: black;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 2.4638cqw; /* 11 pt at full A4 width */
+  line-height: 1.16;
+  overflow-wrap: anywhere;
+  box-shadow: 0 2px 8px #0002;
+}
+
+.resume-heading { text-align: center; margin-bottom: 0.9em; }
+.resume-heading h2 { font-size: 2.65em; font-weight: bold; font-variant: small-caps; line-height: 1.05; }
+.resume-heading p { margin-top: 0.3em; font-size: 0.95em; }
+.resume-section { margin-top: 0.85em; }
+.resume-section h3 { border-bottom: 0.5pt solid black; padding-bottom: 0.13em; margin-bottom: 0.4em; font-size: 1.2em; font-weight: bold; font-variant: small-caps; }
+.resume-entry { margin: 0.5em 0.7em 0; }
+.resume-entry-row { display: flex; align-items: baseline; justify-content: space-between; gap: 1em; }
+.resume-entry-row h4 { min-width: 0; font-weight: bold; }
+.resume-dates { flex-shrink: 0; max-width: 40%; text-align: right; }
+.resume-organization { font-style: italic; font-size: 0.95em; margin-top: 0.1em; }
+.resume-bullets { list-style: disc; padding-left: 1.4em; margin-top: 0.25em; font-size: 0.95em; }
+.resume-bullets li { padding-left: 0.1em; margin-top: 0.15em; }
+.resume-skills { margin-inline: 0.7em; font-size: 0.95em; }
+.resume-skills p { margin-top: 0.15em; }
+
+/* Named page rules apply only to this resume, not to the homepage. */
+@page resume {
+  size: A4 portrait;
+  margin: 12.7mm;
+}
+
+@media print {
+  html:has(.resume-editor),
+  body:has(.resume-editor) {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  body:has(.resume-editor) { page: resume; }
+  .resume-editor .resume-no-print { display: none !important; }
+  body:has(.resume-editor) > :not(:has(.resume-editor)):not(.resume-editor) { display: none !important; }
+
+  .resume-editor,
+  .resume-editor .resume-layout,
+  .resume-editor .resume-preview-panel,
+  .resume-sheet-container {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    container-type: normal;
+  }
+
+  .resume-sheet {
+    page: resume;
+    width: auto;
+    min-height: 0;
+    height: auto;
+    padding: 0;
+    overflow: visible;
+    box-shadow: none;
+    font-size: 11pt;
+  }
+
+  .resume-section h3,
+  .resume-entry-heading { break-inside: avoid; break-after: avoid; }
+  /* Allow whole sections and long entries to flow rather than forcing blank pages. */
+  .resume-bullets li, .resume-skills p { orphans: 2; widows: 2; }
+}
