@@ -1,0 +1,68 @@
+.resume-preview {
+  width: 100%;
+  max-width: 210mm;
+  margin-inline: auto;
+}
+
+.resume-pdf-pages { display: grid; gap: 20px; }
+.resume-pdf-page {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: white;
+  box-shadow: 0 2px 8px #0002;
+}
+.preview-message {
+  padding: 24px;
+  background: white;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.gallery-preview {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  height: 256px;
+  overflow: hidden;
+  padding: 12px;
+  background: #f3f4f6;
+}
+.gallery-preview .resume-preview { max-width: 164px; }
+.gallery-preview .preview-message { font-size: 12px; padding: 12px; }
+
+/* Screen-only sizing leaves Jake's original print pagination untouched. */
+@media screen and (min-width: 1024px) {
+  .resume-editor {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .resume-editor > header { flex-shrink: 0; width: 100%; }
+  .resume-editor .resume-layout {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    align-items: stretch;
+  }
+  .resume-edit-panel { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+  .resume-preview-panel { display: flex; flex-direction: column; min-height: 0; }
+  .resume-preview-controls { flex-shrink: 0; }
+  .resume-preview-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+}
+.resume-preview-scroll { padding: 4px 8px 12px; }
+
+@media print {
+  .resume-preview, .resume-preview-scroll {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+}

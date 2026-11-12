@@ -1,24 +1,24 @@
 ﻿# Resume templates
 
-The editor owns the resume data and localStorage auto-save. Template selection
-is separate UI state; it never changes saved resume content.
+The editor owns resume data and the unchanged `resume-studio:resume:v1` key.
+Template selection never mutates that data. The registry contains exactly six
+templates. Jake's component, typography and browser print behavior are unchanged.
+The homepage gallery and editor share `resume-preview.tsx`. URL template selection
+is independent of stored content.
 
-`index.tsx` is the template registry. `jake-template.tsx` is the only current
-template, using `resume.css` for the A4 sheet and print layout. The selected
-component receives `ResumeData` and renders the same selectable HTML text used
-in the preview and PDF. Download PDF opens the browser's print dialog.
+The five Typst templates use `typst-data.ts`, `use-typst-preview.ts` and
+`app/api/resume/route.ts`. The hook debounces edits, cancels obsolete requests,
+revokes PDF object URLs and disables stale downloads. Preview and download use
+the same PDF bytes. `pdf-preview.tsx` uses a lazy-loaded PDF.js worker to draw pages
+on canvases, without viewer controls or changes to the original download. The
+gallery shows only the first page; the editor shows every page. A failed render
+leaves editor data intact. `preview.css` scopes desktop scrolling to the editor
+and preview panels, and restores the original unrestricted flow for printing.
 
-To add a template:
+Upstream packages, fonts, licenses, mapping details and setup instructions are
+in [typst/README.md](../../../typst/README.md). User text is JSON data, never
+Typst code. New template styling belongs in Typst adapters; do not restyle Jake.
 
-1. Verify that the reference's license permits the planned use and retain its
-   required notices. Jake's attribution and MIT notice are in ATTRIBUTION.md.
-2. Add a component accepting `{ resume: ResumeData }`. Keep storage, editing,
-   and export controls outside the component.
-3. Register its unique id, name, sourceUrl, and component in `index.tsx`.
-4. Reuse the sheet/print structure. Scope any new visual styles to the template
-   so they do not affect other templates or the homepage.
-5. Verify empty sections, long text, multiple entries, mobile widths, and both
-   one-page and multi-page PDFs. Never clip content to a fixed page height.
-
-Browser PDF settings: Save as PDF, A4, 100% scale, headers/footers off.
-No external rendering service or compilation step is required.
+Run lint/build and `npm run test:templates` with the app running. Also verify
+switching all six templates, refresh persistence, rapid edits, preview/download
+byte equality, Jake's print flow and mobile layout in a browser.

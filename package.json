@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "setup:typst": "node scripts/setup-typst.mjs",
+    "test:templates": "node --test scripts/test-templates.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -10,6 +12,7 @@
   },
   "dependencies": {
     "next": "16.4.6",
+    "pdfjs-dist": "^6.5.438",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

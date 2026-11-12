@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    "/api/resume": ["./typst/**/*", "./.typst/*"],
+  },
   /* config options here */
   experimental: {
     agentFeedback: true,

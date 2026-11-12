@@ -1,12 +1,15 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   initialResume, isResumeData, STORAGE_KEY,
   type EntryField, type PersonalField, type ResumeData, type SectionKey,
 } from "./resume-data";
-import { resumeTemplates, type ResumeTemplateId } from "./templates";
+import { resumeTemplates } from "./templates";
+import { useTypstPreview } from "./templates/use-typst-preview";
+import { ResumePreview } from "./templates/resume-preview";
 
 const contactFields = [
   { key: "name", label: "Full name", type: "text", autoComplete: "name" },
@@ -31,14 +34,26 @@ interface EditorState {
   status: string;
 }
 
-export default function ResumeEditor() {
-  const [templateId, setTemplateId] = useState<ResumeTemplateId>(resumeTemplates[0].id);
-  const selectedTemplate = resumeTemplates.find((template) => template.id === templateId) ?? resumeTemplates[0];
-  const Template = selectedTemplate.component;
+function ResumeEditor() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const selectedTemplate = resumeTemplates.find((template) => template.id === searchParams.get("template")) ?? resumeTemplates[0];
+  const templateId = selectedTemplate.id;
   const [editor, setEditor] = useState<EditorState>({
     resume: initialResume, ready: false, canSave: false, status: "Loading saved resume…",
   });
   const { resume, ready, status } = editor;
+  const pdf = useTypstPreview(templateId, resume, ready);
+  const isTypst = templateId !== "jake";
+
+  function downloadPdf() {
+    if (!isTypst) return window.print();
+    if (!pdf.url) return;
+    const link = document.createElement("a");
+    link.href = pdf.url;
+    link.download = `resume-${templateId}.pdf`;
+    link.click();
+  }
 
   useEffect(() => {
     let loaded: EditorState = {
@@ -99,14 +114,14 @@ export default function ResumeEditor() {
   }
 
   return (
-    <main className="resume-editor min-h-screen bg-gray-100 px-4 py-6 text-gray-900 sm:px-6 lg:py-8">
-      <header className="resume-no-print mx-auto mb-8 max-w-7xl">
+    <main className="resume-editor min-h-screen bg-gray-100 px-4 py-5 text-gray-900 sm:px-6">
+      <header className="resume-no-print mx-auto mb-5 max-w-7xl">
         <Link href="/" className="rounded text-xl font-bold focus-visible:outline-2 focus-visible:outline-offset-4">
           Resume Studio.
         </Link>
       </header>
-      <div className="resume-layout mx-auto grid max-w-7xl items-start gap-8 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-        <section aria-labelledby="editor-heading" className="resume-no-print min-w-0 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="resume-layout mx-auto grid max-w-7xl items-start gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+        <section aria-labelledby="editor-heading" className="resume-edit-panel resume-no-print min-w-0 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
           <h1 id="editor-heading" className="text-2xl font-bold tracking-tight">Edit your resume</h1>
           <p className="mt-2 text-sm leading-6 text-gray-600">Your preview updates as you type. Add entries for each qualification, role, or project.</p>
           <p role="status" className="mt-2 text-xs leading-5 text-gray-600">{status}</p>
@@ -173,41 +188,57 @@ export default function ResumeEditor() {
         </section>
 
         <section aria-labelledby="preview-heading" className="resume-preview-panel min-w-0">
-          <div className="resume-no-print mb-3 flex flex-wrap items-center justify-between gap-4">
-            <h2 id="preview-heading" className="text-sm font-semibold">Live preview</h2>
-            <span className="text-xs text-gray-500">A4 · 210 × 297 mm</span>
-          </div>
-          <div className="resume-no-print mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="min-w-0 flex-1 basis-48">
-                <label htmlFor="resume-template" className="mb-1.5 block text-xs font-medium text-gray-600">
-                  Template
-                </label>
-                <select id="resume-template" value={templateId}
-                  onChange={(event) => {
-                    const template = resumeTemplates.find((item) => item.id === event.target.value);
-                    if (template) setTemplateId(template.id);
-                  }}
-                  className={fieldClassName}>
-                  {resumeTemplates.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
-                </select>
-              </div>
-              <button type="button" disabled={!ready} onClick={() => window.print()}
-                className="rounded-lg bg-gray-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:opacity-50">
-                Download PDF
-              </button>
+          <div className="resume-preview-controls resume-no-print">
+            <div className="resume-no-print mb-3 flex flex-wrap items-center justify-between gap-4">
+              <h2 id="preview-heading" className="text-sm font-semibold">Live preview</h2>
+              <span className="text-xs text-gray-500">{isTypst ? "Original template page size" : "A4 · 210 × 297 mm"}</span>
             </div>
-            <p className="mt-3 text-xs leading-5 text-gray-500">
-              Choose Save as PDF, A4 paper, and 100% scale. Turn off browser headers and footers.
+            <div className="resume-no-print mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="min-w-0 flex-1 basis-48">
+                  <label htmlFor="resume-template" className="mb-1.5 block text-xs font-medium text-gray-600">
+                    Template
+                  </label>
+                  <select id="resume-template" value={templateId}
+                    onChange={(event) => {
+                      const template = resumeTemplates.find((item) => item.id === event.target.value);
+                      if (template) {
+                        const params = new URLSearchParams(searchParams);
+                        params.set("template", template.id);
+                        router.replace(`/editor?${params}`, { scroll: false });
+                      }
+                    }}
+                    className={fieldClassName}>
+                    {resumeTemplates.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+                  </select>
+                </div>
+                <button type="button" disabled={!ready || (isTypst && !pdf.url)} onClick={downloadPdf}
+                  className="rounded-lg bg-gray-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:opacity-50">
+                  Download PDF
+                </button>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-gray-500">
+                {isTypst ? "Download saves the PDF shown in the preview. Your resume is sent to this app’s server for rendering." : "Choose Save as PDF, A4 paper, and 100% scale. Turn off browser headers and footers."}
+              </p>
+            </div>
+          </div>
+          <div className="resume-preview-scroll" tabIndex={0} role="region" aria-label="Resume pages">
+            <ResumePreview template={selectedTemplate} resume={resume} pdf={pdf} />
+            <p className="resume-no-print mt-3 text-xs leading-5 text-gray-500">
+              {isTypst ? "Rendered with Typst using the original template source." : "Longer resumes continue onto additional pages when printed."}
+              {" "}{isTypst ? "Template:" : "Design inspired by"} <a href={selectedTemplate.sourceUrl} className="underline">{selectedTemplate.name}</a>.
             </p>
           </div>
-          <Template resume={resume} />
-          <p className="resume-no-print mt-3 text-xs leading-5 text-gray-500">
-            Longer resumes continue onto additional pages when printed.
-            {" "}Design inspired by <a href={selectedTemplate.sourceUrl} className="underline">{selectedTemplate.name}</a>.
-          </p>
         </section>
       </div>
     </main>
+  );
+}
+
+export default function EditorPage() {
+  return (
+    <Suspense fallback={<p role="status" className="p-6 text-sm text-gray-600">Loading editor…</p>}>
+      <ResumeEditor />
+    </Suspense>
   );
 }

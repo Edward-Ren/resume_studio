@@ -26,3 +26,9 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+# Typst templates
+
+The five original Typst packages, their authors, licenses, font notices and
+adapter modifications are documented in [typst/README.md](../../../typst/README.md).
+Their original sources and available license files are retained in `typst/packages/`.
