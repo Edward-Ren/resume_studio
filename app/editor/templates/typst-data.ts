@@ -8,6 +8,7 @@ export function adaptResume(resume: ResumeData) {
   const words = resume.name.trim().split(/\s+/);
   return {
     ...resume,
+    photo: resume.photo ? Array.from(Buffer.from(resume.photo.split(",")[1], "base64")) : null,
     firstName: words.shift() || "Your Name",
     lastName: words.join(" "),
     name: resume.name.trim() || "Your Name",

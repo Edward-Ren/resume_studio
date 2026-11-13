@@ -6,7 +6,7 @@
     positions: (),
   ),
   show-footer: false, show-address-icon: true,
-  profile-picture: none,
+  profile-picture: if data.photo != none { image(bytes(data.photo)) } else { none },
   font: "Source Sans 3", // First font in the upstream fallback list, bundled here.
   paper-size: "us-letter", colored-headers: true,
   contact-items-separator: box[#h(2pt)#text("|")#h(2pt)],

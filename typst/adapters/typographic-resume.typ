@@ -1,6 +1,7 @@
 #import "@preview/typographic-resume:0.2.0": *
 #show: resume.with(
   first-name: data.firstName, last-name: data.lastName,
+  profile-picture: if data.photo != none { image(bytes(data.photo)) } else { none },
   aside: {
     if data.contact.len() > 0 {
       section("Contact", {

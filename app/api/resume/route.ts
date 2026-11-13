@@ -4,13 +4,13 @@ import { readFile } from "node:fs/promises";
 import { isResumeData } from "../../editor/resume-data";
 import { adaptResume } from "../../editor/templates/typst-data";
 
-const templates = ["readable-classic", "academicv", "modern-cv", "cobalt-cv", "typographic-resume"];
+const templates = ["readable-classic", "academicv", "modern-cv", "cobalt-cv", "typographic-resume", "vivid-cv", "toy-cv", "altacv", "neat-cv", "rasko-europass"];
 
 export async function POST(request: Request) {
   let body;
   try {
     const raw = await request.text();
-    if (raw.length > 200_000) return Response.json({ error: "Resume is too large (maximum 200,000 characters)." }, { status: 413 });
+    if (raw.length > 400_000) return Response.json({ error: "Resume is too large." }, { status: 413 });
     body = JSON.parse(raw);
   } catch {
     return Response.json({ error: "Invalid resume request." }, { status: 400 });
@@ -19,6 +19,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid template or resume data." }, { status: 400 });
   }
   const root = path.join(process.cwd(), "typst");
+  if (JSON.stringify({ ...body, resume: { ...body.resume, photo: undefined } }).length > 200_000) {
+    return Response.json({ error: "Resume text is too large (maximum 200,000 characters)." }, { status: 413 });
+  }
   try {
     const source = await readFile(path.join(root, "adapters", `${body.template}.typ`), "utf8");
     const data = JSON.stringify(JSON.stringify(adaptResume(body.resume)));

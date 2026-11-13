@@ -11,6 +11,7 @@ export interface ResumeData {
   email: string;
   phone: string;
   location: string;
+  photo?: string;
   education: ResumeEntry[];
   experience: ResumeEntry[];
   projects: ResumeEntry[];
@@ -22,6 +23,7 @@ export type EntryField = Exclude<keyof ResumeEntry, "id">;
 export type PersonalField = "name" | "email" | "phone" | "location" | "skills";
 
 export const STORAGE_KEY = "resume-studio:resume:v1";
+export const MAX_PHOTO_LENGTH = 200_000;
 
 export const initialResume: ResumeData = {
   name: "Alex Morgan",
@@ -59,6 +61,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // Validate browser data before trusting it as typed application state.
 export function isResumeData(value: unknown): value is ResumeData {
   if (!isRecord(value)) return false;
+  if (value.photo !== undefined && (typeof value.photo !== "string" ||
+    value.photo.length > MAX_PHOTO_LENGTH || !/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(value.photo))) return false;
   if (!["name", "email", "phone", "location", "skills"].every(
     (field) => typeof value[field] === "string",
   )) return false;

@@ -1,4 +1,4 @@
-﻿# Attribution
+# Attribution
 
 The React/CSS resume presentation is a visual adaptation of Jake's Resume by
 Jake Gutierrez: https://github.com/jakegut/resume (based on
@@ -29,6 +29,6 @@ SOFTWARE.
 
 # Typst templates
 
-The five original Typst packages, their authors, licenses, font notices and
+The ten original Typst packages, their authors, licenses, font notices and
 adapter modifications are documented in [typst/README.md](../../../typst/README.md).
 Their original sources and available license files are retained in `typst/packages/`.

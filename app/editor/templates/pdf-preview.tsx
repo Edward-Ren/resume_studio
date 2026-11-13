@@ -32,6 +32,8 @@ export function PdfPreview({ url, firstPageOnly = false }: { url: string; firstP
           canvas.width = Math.ceil(scaled.width);
           canvas.height = Math.ceil(scaled.height);
           canvas.className = "resume-pdf-page";
+          canvas.style.setProperty("--page-ratio", String(viewport.width / viewport.height));
+          canvas.style.setProperty("--page-width", `${viewport.width * 96 / 72}px`);
           canvas.setAttribute("role", "img");
           const text = await page.getTextContent();
           canvas.setAttribute("aria-label", `Resume page ${number} of ${pdf.numPages}. ${text.items.map((item) => "str" in item ? item.str : "").join(" ")}`);

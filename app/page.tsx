@@ -8,7 +8,7 @@ export default function Home() {
       </header>
       <section aria-labelledby="gallery-heading" className="mx-auto max-w-6xl px-6 pb-10 pt-5">
         <h1 id="gallery-heading" className="text-3xl font-bold tracking-tight">Choose your resume template</h1>
-        <p className="mb-7 mt-3 text-sm leading-6 text-gray-600">Six layouts. Your experience. Switch templates anytime without losing your edits.</p>
+        <p className="mb-7 mt-3 text-sm leading-6 text-gray-600">Your experience, your layout. Switch templates anytime without losing your edits.</p>
         <TemplateGallery />
       </section>
       <footer className="mx-auto max-w-6xl px-6 pb-6 text-xs text-gray-500">

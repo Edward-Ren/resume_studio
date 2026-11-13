@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -10,6 +10,7 @@ import {
 import { resumeTemplates } from "./templates";
 import { useTypstPreview } from "./templates/use-typst-preview";
 import { ResumePreview } from "./templates/resume-preview";
+import { ProfilePhoto } from "./profile-photo";
 
 const contactFields = [
   { key: "name", label: "Full name", type: "text", autoComplete: "name" },
@@ -45,6 +46,55 @@ function ResumeEditor() {
   const { resume, ready, status } = editor;
   const pdf = useTypstPreview(templateId, resume, ready);
   const isTypst = templateId !== "jake";
+  const [zoom, setZoom] = useState("page");
+  const [scale, setScale] = useState(1);
+  const [fullscreen, setFullscreen] = useState(false);
+  const previewPanel = useRef<HTMLElement>(null);
+  const previewScroll = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const changed = () => setFullscreen(document.fullscreenElement === previewPanel.current);
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setFullscreen(false); };
+    document.addEventListener("fullscreenchange", changed);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("fullscreenchange", changed);
+      document.removeEventListener("keydown", escape);
+    };
+  }, []);
+
+  async function toggleFullscreen() {
+    if (fullscreen) {
+      setFullscreen(false);
+      if (document.fullscreenElement) await document.exitFullscreen();
+    } else {
+      setFullscreen(true);
+      // The viewport overlay also works where browser fullscreen is unavailable.
+      await previewPanel.current?.requestFullscreen?.().catch(() => {});
+    }
+  }
+
+  function adjustZoom(direction: number) {
+    const page = previewScroll.current?.querySelector<HTMLElement>(".resume-pdf-page, .resume-sheet-container");
+    if (!page) return;
+    const naturalWidth = parseFloat(page.style.getPropertyValue("--page-width")) || 210 * 96 / 25.4;
+    const current = page.getBoundingClientRect().width / naturalWidth;
+    setScale(Math.min(3, Math.max(0.25, Math.round((current + direction * 0.1) * 100) / 100)));
+    setZoom("actual");
+  }
+
+  useEffect(() => {
+    const panel = previewScroll.current!;
+    panel.scrollTo(0, 0);
+    const resize = () => {
+      panel.style.setProperty("--preview-width", `${panel.clientWidth - 16}px`);
+      panel.style.setProperty("--preview-height", `${panel.clientHeight - 16}px`);
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(panel);
+    resize();
+    return () => observer.disconnect();
+  }, [templateId]);
 
   function downloadPdf() {
     if (!isTypst) return window.print();
@@ -115,10 +165,14 @@ function ResumeEditor() {
 
   return (
     <main className="resume-editor min-h-screen bg-gray-100 px-4 py-5 text-gray-900 sm:px-6">
-      <header className="resume-no-print mx-auto mb-5 max-w-7xl">
+      <header className="resume-editor-header resume-no-print mx-auto mb-3 flex w-full max-w-7xl items-center justify-between gap-4">
         <Link href="/" className="rounded text-xl font-bold focus-visible:outline-2 focus-visible:outline-offset-4">
           Resume Studio.
         </Link>
+        <button type="button" disabled={!ready || (isTypst && !pdf.url)} onClick={downloadPdf}
+          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50">
+          Download PDF
+        </button>
       </header>
       <div className="resume-layout mx-auto grid max-w-7xl items-start gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <section aria-labelledby="editor-heading" className="resume-edit-panel resume-no-print min-w-0 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
@@ -138,6 +192,7 @@ function ResumeEditor() {
                       onChange={(event) => updateField(key, event.target.value)} className={fieldClassName} />
                   </div>
                 ))}
+                <ProfilePhoto photo={resume.photo} onChange={(photo) => updateResume({ ...resume, photo })} />
               </fieldset>
 
               <p id="section-hint" className="border-t border-gray-100 pt-5 text-sm leading-6 text-gray-500">
@@ -187,47 +242,34 @@ function ResumeEditor() {
           </form>
         </section>
 
-        <section aria-labelledby="preview-heading" className="resume-preview-panel min-w-0">
-          <div className="resume-preview-controls resume-no-print">
-            <div className="resume-no-print mb-3 flex flex-wrap items-center justify-between gap-4">
-              <h2 id="preview-heading" className="text-sm font-semibold">Live preview</h2>
-              <span className="text-xs text-gray-500">{isTypst ? "Original template page size" : "A4 · 210 × 297 mm"}</span>
-            </div>
-            <div className="resume-no-print mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="min-w-0 flex-1 basis-48">
-                  <label htmlFor="resume-template" className="mb-1.5 block text-xs font-medium text-gray-600">
-                    Template
-                  </label>
-                  <select id="resume-template" value={templateId}
-                    onChange={(event) => {
-                      const template = resumeTemplates.find((item) => item.id === event.target.value);
-                      if (template) {
-                        const params = new URLSearchParams(searchParams);
-                        params.set("template", template.id);
-                        router.replace(`/editor?${params}`, { scroll: false });
-                      }
-                    }}
-                    className={fieldClassName}>
-                    {resumeTemplates.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
-                  </select>
-                </div>
-                <button type="button" disabled={!ready || (isTypst && !pdf.url)} onClick={downloadPdf}
-                  className="rounded-lg bg-gray-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:opacity-50">
-                  Download PDF
-                </button>
-              </div>
-              <p className="mt-3 text-xs leading-5 text-gray-500">
-                {isTypst ? "Download saves the PDF shown in the preview. Your resume is sent to this app’s server for rendering." : "Choose Save as PDF, A4 paper, and 100% scale. Turn off browser headers and footers."}
-              </p>
-            </div>
-          </div>
-          <div className="resume-preview-scroll" tabIndex={0} role="region" aria-label="Resume pages">
+        <section ref={previewPanel} data-fullscreen={fullscreen} aria-label="Live preview" className="resume-preview-panel min-w-0">
+          <div key={templateId} ref={previewScroll} data-zoom={zoom}
+            style={{ "--preview-scale": scale } as CSSProperties}
+            className="resume-preview-scroll" tabIndex={0} role="region" aria-label="Resume pages">
             <ResumePreview template={selectedTemplate} resume={resume} pdf={pdf} />
-            <p className="resume-no-print mt-3 text-xs leading-5 text-gray-500">
-              {isTypst ? "Rendered with Typst using the original template source." : "Longer resumes continue onto additional pages when printed."}
-              {" "}{isTypst ? "Template:" : "Design inspired by"} <a href={selectedTemplate.sourceUrl} className="underline">{selectedTemplate.name}</a>.
-            </p>
+          </div>
+          <div className="resume-preview-toolbar resume-no-print" role="group" aria-label="Preview controls">
+            <label htmlFor="resume-template" className="sr-only">Template</label>
+            <select id="resume-template" value={templateId} onChange={(event) => {
+              const params = new URLSearchParams(searchParams);
+              params.set("template", event.target.value);
+              router.replace(`/editor?${params}`, { scroll: false });
+            }}>
+              {resumeTemplates.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+            </select>
+            <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => adjustZoom(-1)}>&minus;</button>
+            <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => adjustZoom(1)}>+</button>
+            <button type="button" aria-pressed={zoom === "page"} onClick={() => {
+              setZoom("page");
+              previewScroll.current?.scrollTo(0, 0);
+            }}>Fit Page</button>
+            <button type="button" aria-pressed={zoom === "width"} onClick={() => setZoom("width")}>Fit Width</button>
+            <button type="button" aria-label={fullscreen ? "Exit fullscreen preview" : "Fullscreen preview"}
+              title={fullscreen ? "Exit fullscreen preview" : "Fullscreen preview"} aria-pressed={fullscreen} onClick={toggleFullscreen}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path d={fullscreen ? "M9 3v6H3m18 0h-6V3M3 15h6v6m6 0v-6h6" : "M9 3H3v6m12-6h6v6M3 15v6h6m6 0h6v-6"} />
+              </svg>
+            </button>
           </div>
         </section>
       </div>

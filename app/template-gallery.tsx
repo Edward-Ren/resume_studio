@@ -14,7 +14,10 @@ function TemplateCard({ template }: { template: ResumeTemplate }) {
         <ResumePreview template={template} resume={initialResume} pdf={pdf} compact />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-4 py-4">
-        <h2 className="text-sm font-semibold">{template.name.split("@")[0]}</h2>
+        <div>
+          <h2 className="text-sm font-semibold">{template.name}</h2>
+          <p className="mt-1 text-xs text-gray-500">{template.description}</p>
+        </div>
         <Link href={`/editor?template=${template.id}`} aria-label={`Use Template: ${template.name}`}
           className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2">
           Use Template
