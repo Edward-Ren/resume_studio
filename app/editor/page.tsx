@@ -174,7 +174,7 @@ function ResumeEditor() {
           Download PDF
         </button>
       </header>
-      <div className="resume-layout mx-auto grid max-w-7xl items-start gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+      <div className="resume-layout mx-auto grid max-w-7xl items-start gap-6 min-[900px]:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <section aria-labelledby="editor-heading" className="resume-edit-panel resume-no-print min-w-0 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
           <h1 id="editor-heading" className="text-2xl font-bold tracking-tight">Edit your resume</h1>
           <p className="mt-2 text-sm leading-6 text-gray-600">Your preview updates as you type. Add entries for each qualification, role, or project.</p>

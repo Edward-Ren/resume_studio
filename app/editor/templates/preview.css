@@ -33,7 +33,7 @@
 .gallery-preview .preview-message { font-size: 12px; padding: 12px; }
 
 /* Screen-only sizing leaves Jake's original print pagination untouched. */
-@media screen and (min-width: 1024px) {
+@media screen and (min-width: 900px) {
   .resume-editor {
     height: 100dvh;
     min-height: 0;
@@ -108,7 +108,7 @@
   .resume-preview-scroll[data-zoom="actual"] .resume-pdf-page,
   .resume-preview-scroll[data-zoom="actual"] .resume-sheet-container { width: calc(var(--page-width) * var(--preview-scale, 1)); }
 }
-@media screen and (max-width: 1023px) {
+@media screen and (max-width: 899px) {
   .resume-preview-panel { height: 80dvh; }
   .resume-preview-scroll { flex: 1; min-height: 0; }
 }

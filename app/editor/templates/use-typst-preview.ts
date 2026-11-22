@@ -47,7 +47,7 @@ export function useTypstPreview(template: string, resume: ResumeData, ready: boo
       callbacks.set(requestId, (response) => {
         if (controller.signal.aborted) return;
         if (response.type === "error") {
-          setResult({ key, url: "", error: response.message });
+          setResult({ key, url: "", error: `Typst compilation failed: ${response.message}` });
           return;
         }
         const buffer = new ArrayBuffer(response.pdf.byteLength);
