@@ -1,61 +1,16 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { CompileFormatEnum } from "@myriaddreamin/typst.ts/compiler";
 import { createTypstCompiler, MemoryAccessModel } from "@myriaddreamin/typst.ts";
 import { loadFonts, withAccessModel, withPackageRegistry } from "@myriaddreamin/typst.ts/options.init";
+import { buildTemplateAssets } from "./typst-assets.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const templates = ["readable-classic", "academicv", "modern-cv", "cobalt-cv", "typographic-resume", "vivid-cv", "toy-cv", "altacv", "neat-cv", "rasko-europass"];
-const memory = new MemoryAccessModel();
-
-async function addTree(directory, virtualPath) {
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const sourcePath = path.join(directory, entry.name);
-    const destination = `${virtualPath}/${entry.name}`;
-    if (entry.isDirectory()) await addTree(sourcePath, destination);
-    else memory.insertFile(destination, new Uint8Array(await readFile(sourcePath)), new Date());
-  }
-}
-
-async function getFiles(directory) {
-  const files = [];
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const file = path.join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...await getFiles(file));
-    else files.push(file);
-  }
-  return files;
-}
-
-const packageDirectory = path.join(root, "typst", "packages", "preview");
-await addTree(packageDirectory, "/@memory/packages/preview");
-const fonts = await Promise.all((await getFiles(path.join(root, "typst", "fonts")))
-  .filter((file) => /\.(?:ttf|otf)$/i.test(file))
-  .map(async (file) => new Uint8Array(await readFile(file))));
-const packageRoots = new Set();
-for (const name of await readdir(packageDirectory, { withFileTypes: true })) {
-  if (!name.isDirectory()) continue;
-  for (const version of await readdir(path.join(packageDirectory, name.name), { withFileTypes: true })) {
-    if (version.isDirectory()) packageRoots.add(`packages/preview/${name.name}/${version.name}`);
-  }
-}
-const packageRegistry = {
-  resolve(spec) {
-    const packageRoot = `packages/${spec.namespace}/${spec.name}/${spec.version}`;
-    return packageRoots.has(packageRoot) ? `/@memory/${packageRoot}` : undefined;
-  },
-};
-const compiler = createTypstCompiler();
-await compiler.init({
-  beforeBuild: [
-    withAccessModel(memory),
-    withPackageRegistry(packageRegistry),
-    loadFonts(fonts, { assets: false }),
-  ],
-});
+const templateAssets = await buildTemplateAssets(root);
 
 const entry = { title: "Engineer", organization: "Example", dates: "2024 – Present", bullets: ["Delivered features", "Reviewed code"] };
 const normal = {
@@ -94,7 +49,7 @@ const photo = {
   photo: Array.from(await readFile(path.join(root, "typst", "packages", "preview", "vivid-cv", "0.2.0", "example", "photo.jpg"))),
 };
 
-async function compile(template, resume) {
+async function compile(template, resume, compiler) {
   const adapter = await readFile(path.join(root, "typst", "adapters", `${template}.typ`), "utf8");
   const source = `#let data = json(bytes(${JSON.stringify(JSON.stringify(resume))}))\n${adapter}`;
   compiler.addSource("/@memory/main.typ", source);
@@ -113,8 +68,33 @@ async function compile(template, resume) {
 
 test("all Typst templates compile normal, empty, literal, long, and photo resumes to PDF", async () => {
   for (const template of templates) {
-    for (const resume of [normal, empty, special, long, photo]) {
-      await compile(template, resume);
+    const assets = templateAssets[template];
+    assert.ok(assets, `${template}: missing asset manifest`);
+    const memory = new MemoryAccessModel();
+    for (const file of assets.packageFiles) {
+      memory.insertFile(`/@memory/${file}`, new Uint8Array(await readFile(path.join(root, "typst", file))), new Date());
     }
+    const fonts = await Promise.all(assets.fontFiles
+      .map(async (file) => new Uint8Array(await readFile(path.join(root, "typst", file)))));
+    const packageRoots = new Set(assets.packageRoots);
+    const packageRegistry = {
+      resolve(spec) {
+        const packageRoot = `packages/${spec.namespace}/${spec.name}/${spec.version}`;
+        return packageRoots.has(packageRoot) ? `/@memory/${packageRoot}` : undefined;
+      },
+    };
+    const compiler = createTypstCompiler();
+    await compiler.init({
+      beforeBuild: [
+        withAccessModel(memory),
+        withPackageRegistry(packageRegistry),
+        loadFonts(fonts, { assets: false }),
+      ],
+    });
+    for (const resume of [normal, empty, special, long, photo]) {
+      await compile(template, resume, compiler);
+      await compiler.evictCache(10);
+    }
+    await compiler.evictCache(0);
   }
 });

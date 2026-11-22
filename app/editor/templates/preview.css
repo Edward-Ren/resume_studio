@@ -29,8 +29,14 @@
   padding: 12px;
   background: #f3f4f6;
 }
-.gallery-preview .resume-preview { max-width: 164px; }
-.gallery-preview .preview-message { font-size: 12px; padding: 12px; }
+.gallery-preview .gallery-thumbnail {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 164px;
+  max-height: 232px;
+  object-fit: contain;
+}
 
 /* Screen-only sizing leaves Jake's original print pagination untouched. */
 @media screen and (min-width: 900px) {

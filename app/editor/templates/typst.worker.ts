@@ -8,9 +8,11 @@ import { isResumeData, type ResumeData } from "../resume-data";
 import { adaptResume } from "./typst-data";
 
 interface AssetManifest {
-  packageRoots: string[];
-  packageFiles: string[];
-  fontFiles: string[];
+  templates: Record<string, {
+    packageRoots: string[];
+    packageFiles: string[];
+    fontFiles: string[];
+  }>;
 }
 
 interface RenderRequest {
@@ -31,11 +33,24 @@ type WorkerRequest = RenderRequest | CancelRequest;
 
 class TypstStageError extends Error {
   constructor(stage: string, error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
+    const privateStages = new Set([
+      "resume validation",
+      "resume adaptation",
+      "Typst source registration",
+      "resume compilation",
+    ]);
+    const message = error instanceof Error
+      ? error.message === "Maximum call stack size exceeded" || error.message === "undefined is not a function"
+        ? `${error.name}: ${error.message}`
+        : privateStages.has(stage)
+          ? `${error.name}: details redacted to protect resume data`
+          : `${error.name}: ${error.message}`
+      : "Unknown error";
     super(`Typst ${stage} failed: ${message}`);
     this.name = "TypstStageError";
     if (error instanceof Error && error.stack) {
-      this.stack = `${this.stack ?? ""}\nCaused by:\n${error.stack}`;
+      const frames = error.stack.split("\n").slice(1).join("\n");
+      this.stack = `${this.name}: ${this.message}${frames ? `\n${frames}` : ""}`;
     }
   }
 }
@@ -55,6 +70,8 @@ const templates = ["readable-classic", "academicv", "modern-cv", "cobalt-cv", "t
 const workerScope = self as DedicatedWorkerGlobalScope;
 const queued = new Map<string, RenderRequest>();
 const latestRequest = new Map<string, number>();
+let assetManifestPromise: Promise<AssetManifest> | undefined;
+let compilerTemplate: string | undefined;
 let compilerPromise: Promise<ReturnType<typeof createTypstCompiler>> | undefined;
 let processing = false;
 
@@ -77,23 +94,38 @@ async function fetchFiles(files: string[], receive: (file: string, data: Uint8Ar
   await Promise.all(Array.from({ length: Math.min(8, files.length) }, load));
 }
 
-async function createCompiler() {
+async function getAssetManifest() {
+  const loadManifest = async () => {
+    const response = await fetch(assetUrl("assets.json"));
+    if (!response.ok) throw new Error("Could not load Typst assets.");
+    return await response.json() as AssetManifest;
+  };
+  assetManifestPromise ??= loadManifest();
+  try {
+    return await assetManifestPromise;
+  } catch (error) {
+    assetManifestPromise = undefined;
+    throw error;
+  }
+}
+
+async function createCompiler(template: string) {
   let stage = "asset manifest loading";
   try {
-    const manifestResponse = await fetch(assetUrl("assets.json"));
-    if (!manifestResponse.ok) throw new Error("Could not load Typst assets.");
-    const manifest = await manifestResponse.json() as AssetManifest;
+    const manifest = await getAssetManifest();
+    const assets = manifest.templates[template];
+    if (!assets) throw new Error(`No Typst assets are configured for ${template}.`);
     const files = new MemoryAccessModel();
-    const fonts: Uint8Array[] = new Array(manifest.fontFiles.length);
+    const fonts: Uint8Array[] = new Array(assets.fontFiles.length);
+    const roots = new Set(assets.packageRoots);
     await Promise.all([
-      fetchFiles(manifest.packageFiles, (file, data) => {
+      fetchFiles(assets.packageFiles, (file, data) => {
         files.insertFile(`/@memory/${file}`, data, new Date());
       }).catch((error: unknown) => { throw new TypstStageError("package loading", error); }),
-      fetchFiles(manifest.fontFiles, (_file, data, index) => {
+      fetchFiles(assets.fontFiles, (_file, data, index) => {
         fonts[index] = data;
       }).catch((error: unknown) => { throw new TypstStageError("font loading", error); }),
     ]);
-    const roots = new Set(manifest.packageRoots);
     const registry: PackageRegistry = {
       resolve(spec) {
         const root = `packages/${spec.namespace}/${spec.name}/${spec.version}`;
@@ -117,12 +149,19 @@ async function createCompiler() {
   }
 }
 
-async function getCompiler() {
-  compilerPromise ??= createCompiler();
+async function getCompiler(template: string) {
+  if (compilerTemplate !== template) {
+    compilerTemplate = template;
+    compilerPromise = undefined;
+  }
+  compilerPromise ??= createCompiler(template);
   try {
     return await compilerPromise;
   } catch (error) {
-    compilerPromise = undefined;
+    if (compilerTemplate === template) {
+      compilerPromise = undefined;
+      compilerTemplate = undefined;
+    }
     throw error;
   }
 }
@@ -140,7 +179,7 @@ async function compile(request: RenderRequest) {
     stage = "resume adaptation";
     const data = JSON.stringify(JSON.stringify(adaptResume(request.resume)));
     const source = `#let data = json(bytes(${data}))\n${adapter}`;
-    const compiler = await getCompiler();
+    const compiler = await getCompiler(request.template);
     stage = "Typst source registration";
     compiler.addSource("/@memory/main.typ", source);
     stage = "resume compilation";
@@ -152,10 +191,13 @@ async function compile(request: RenderRequest) {
       diagnostics: "full",
     });
     if (!output.result) {
-      const errors = output.diagnostics?.filter((item) => item.severity === "error").map((item) => item.message);
-      throw new Error(errors?.join("\n") || "Typst could not render this resume.");
+      const count = output.diagnostics?.filter((item) => item.severity === "error").length ?? 0;
+      throw new Error(`Compiler returned ${Math.max(1, count)} error diagnostic(s).`);
     }
-    return output.result;
+    const pdf = new Uint8Array(output.result);
+    stage = "Typst cache eviction";
+    await compiler.evictCache(10);
+    return pdf;
   } catch (error) {
     if (error instanceof TypstStageError) throw error;
     throw new TypstStageError(stage, error);

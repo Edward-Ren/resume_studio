@@ -1,39 +1,16 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { initialResume } from "./editor/resume-data";
 import { resumeTemplates, type ResumeTemplate } from "./editor/templates";
-import { ResumePreview } from "./editor/templates/resume-preview";
-import { useTypstPreview } from "./editor/templates/use-typst-preview";
+import "./editor/templates/preview.css";
+
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 function TemplateCard({ template }: { template: ResumeTemplate }) {
-  const card = useRef<HTMLElement>(null);
-  const [previewReady, setPreviewReady] = useState(false);
-  const pdf = useTypstPreview(template.id, initialResume, previewReady);
-
-  useEffect(() => {
-    const element = card.current;
-    if (!element) return;
-    if (!("IntersectionObserver" in window)) {
-      const frame = requestAnimationFrame(() => setPreviewReady(true));
-      return () => cancelAnimationFrame(frame);
-    }
-
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        setPreviewReady(true);
-        observer.disconnect();
-      }
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <article ref={card} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+    <article className="overflow-hidden rounded-xl border border-gray-200 bg-white">
       <div className="gallery-preview" aria-hidden="true">
-        <ResumePreview template={template} resume={initialResume} pdf={pdf} compact />
+        <Image src={`${basePath}/thumbnails/${template.id}.webp`} alt="" width={480} height={680}
+          unoptimized className="gallery-thumbnail" />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-4 py-4">
         <div>

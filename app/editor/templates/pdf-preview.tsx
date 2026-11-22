@@ -8,6 +8,30 @@ function describeError(error: unknown) {
   return detail.replace(/[.!?]+$/, "");
 }
 
+function ensureReadableStreamAsyncIterator() {
+  if (typeof ReadableStream === "undefined" || typeof Symbol.asyncIterator !== "symbol") return;
+  const prototype = ReadableStream.prototype as ReadableStream<unknown> & {
+    [Symbol.asyncIterator]?: (this: ReadableStream<unknown>) => AsyncIterator<unknown>;
+  };
+  if (typeof prototype[Symbol.asyncIterator] === "function") return;
+  Object.defineProperty(prototype, Symbol.asyncIterator, {
+    configurable: true,
+    writable: true,
+    value: async function* (this: ReadableStream<unknown>) {
+      const reader = this.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) return;
+          yield value;
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    },
+  });
+}
+
 // Display only: the original PDF blob is still used directly for download.
 export function PdfPreview({ url, firstPageOnly = false }: { url: string; firstPageOnly?: boolean }) {
   const container = useRef<HTMLDivElement>(null);
@@ -33,6 +57,7 @@ export function PdfPreview({ url, firstPageOnly = false }: { url: string; firstP
     async function render() {
       let phase = "loading PDF.js";
       try {
+        ensureReadableStreamAsyncIterator();
         const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
         if (disposed) return;
         phase = "initializing the PDF.js worker";
