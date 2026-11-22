@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { initialResume } from "./editor/resume-data";
 import { resumeTemplates, type ResumeTemplate } from "./editor/templates";
@@ -7,9 +8,30 @@ import { ResumePreview } from "./editor/templates/resume-preview";
 import { useTypstPreview } from "./editor/templates/use-typst-preview";
 
 function TemplateCard({ template }: { template: ResumeTemplate }) {
-  const pdf = useTypstPreview(template.id, initialResume, true);
+  const card = useRef<HTMLElement>(null);
+  const [previewReady, setPreviewReady] = useState(false);
+  const pdf = useTypstPreview(template.id, initialResume, previewReady);
+
+  useEffect(() => {
+    const element = card.current;
+    if (!element) return;
+    if (!("IntersectionObserver" in window)) {
+      const frame = requestAnimationFrame(() => setPreviewReady(true));
+      return () => cancelAnimationFrame(frame);
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setPreviewReady(true);
+        observer.disconnect();
+      }
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <article className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+    <article ref={card} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
       <div className="gallery-preview" aria-hidden="true">
         <ResumePreview template={template} resume={initialResume} pdf={pdf} compact />
       </div>

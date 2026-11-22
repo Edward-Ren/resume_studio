@@ -3,7 +3,7 @@
 import { CompileFormatEnum, createTypstCompiler } from "@myriaddreamin/typst.ts/compiler";
 import { MemoryAccessModel } from "@myriaddreamin/typst.ts/fs/memory";
 import type { PackageRegistry } from "@myriaddreamin/typst.ts/internal.types";
-import { loadFonts, withAccessModel, withPackageRegistry } from "@myriaddreamin/typst.ts/options.init";
+import { loadFonts, withAccessModel, withPackageRegistry, type BeforeBuildFn } from "@myriaddreamin/typst.ts/options.init";
 import { isResumeData, type ResumeData } from "../resume-data";
 import { adaptResume } from "./typst-data";
 
@@ -28,6 +28,27 @@ interface CancelRequest {
 }
 
 type WorkerRequest = RenderRequest | CancelRequest;
+
+class TypstStageError extends Error {
+  constructor(stage: string, error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    super(`Typst ${stage} failed: ${message}`);
+    this.name = "TypstStageError";
+    if (error instanceof Error && error.stack) {
+      this.stack = `${this.stack ?? ""}\nCaused by:\n${error.stack}`;
+    }
+  }
+}
+
+function stageBeforeBuild(stage: string, callback: BeforeBuildFn): BeforeBuildFn {
+  return async (mark, context) => {
+    try {
+      await callback(mark, context);
+    } catch (error) {
+      throw new TypstStageError(stage, error);
+    }
+  };
+}
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const templates = ["readable-classic", "academicv", "modern-cv", "cobalt-cv", "typographic-resume", "vivid-cv", "toy-cv", "altacv", "neat-cv", "rasko-europass"];
@@ -57,36 +78,43 @@ async function fetchFiles(files: string[], receive: (file: string, data: Uint8Ar
 }
 
 async function createCompiler() {
-  const manifestResponse = await fetch(assetUrl("assets.json"));
-  if (!manifestResponse.ok) throw new Error("Could not load Typst assets.");
-  const manifest = await manifestResponse.json() as AssetManifest;
-  const files = new MemoryAccessModel();
-  const fonts: Uint8Array[] = new Array(manifest.fontFiles.length);
-  await Promise.all([
-    fetchFiles(manifest.packageFiles, (file, data) => {
-      files.insertFile(`/@memory/${file}`, data, new Date());
-    }),
-    fetchFiles(manifest.fontFiles, (_file, data, index) => {
-      fonts[index] = data;
-    }),
-  ]);
-  const roots = new Set(manifest.packageRoots);
-  const registry: PackageRegistry = {
-    resolve(spec) {
-      const root = `packages/${spec.namespace}/${spec.name}/${spec.version}`;
-      return roots.has(root) ? `/@memory/${root}` : undefined;
-    },
-  };
-  const compiler = createTypstCompiler();
-  await compiler.init({
-    getModule: () => new URL(`${basePath}/typst/typst_ts_web_compiler_bg.wasm`, workerScope.location.origin),
-    beforeBuild: [
-      withAccessModel(files),
-      withPackageRegistry(registry),
-      loadFonts(fonts, { assets: false }),
-    ],
-  });
-  return compiler;
+  let stage = "asset manifest loading";
+  try {
+    const manifestResponse = await fetch(assetUrl("assets.json"));
+    if (!manifestResponse.ok) throw new Error("Could not load Typst assets.");
+    const manifest = await manifestResponse.json() as AssetManifest;
+    const files = new MemoryAccessModel();
+    const fonts: Uint8Array[] = new Array(manifest.fontFiles.length);
+    await Promise.all([
+      fetchFiles(manifest.packageFiles, (file, data) => {
+        files.insertFile(`/@memory/${file}`, data, new Date());
+      }).catch((error: unknown) => { throw new TypstStageError("package loading", error); }),
+      fetchFiles(manifest.fontFiles, (_file, data, index) => {
+        fonts[index] = data;
+      }).catch((error: unknown) => { throw new TypstStageError("font loading", error); }),
+    ]);
+    const roots = new Set(manifest.packageRoots);
+    const registry: PackageRegistry = {
+      resolve(spec) {
+        const root = `packages/${spec.namespace}/${spec.name}/${spec.version}`;
+        return roots.has(root) ? `/@memory/${root}` : undefined;
+      },
+    };
+    stage = "WASM initialization";
+    const compiler = createTypstCompiler();
+    await compiler.init({
+      getModule: () => new URL(`${basePath}/typst/typst_ts_web_compiler_bg.wasm`, workerScope.location.origin),
+      beforeBuild: [
+        stageBeforeBuild("filesystem initialization", withAccessModel(files)),
+        stageBeforeBuild("package registry initialization", withPackageRegistry(registry)),
+        stageBeforeBuild("font registration", loadFonts(fonts, { assets: false })),
+      ],
+    });
+    return compiler;
+  } catch (error) {
+    if (error instanceof TypstStageError) throw error;
+    throw new TypstStageError(stage, error);
+  }
 }
 
 async function getCompiler() {
@@ -100,27 +128,38 @@ async function getCompiler() {
 }
 
 async function compile(request: RenderRequest) {
-  if (!templates.includes(request.template) || !isResumeData(request.resume)) {
-    throw new Error("Invalid template or resume data.");
+  let stage = "resume validation";
+  try {
+    if (!templates.includes(request.template) || !isResumeData(request.resume)) {
+      throw new Error("Invalid template or resume data.");
+    }
+    stage = "template adapter loading";
+    const response = await fetch(assetUrl(`adapters/${request.template}.typ`));
+    if (!response.ok) throw new Error(`Could not load the ${request.template} template.`);
+    const adapter = await response.text();
+    stage = "resume adaptation";
+    const data = JSON.stringify(JSON.stringify(adaptResume(request.resume)));
+    const source = `#let data = json(bytes(${data}))\n${adapter}`;
+    const compiler = await getCompiler();
+    stage = "Typst source registration";
+    compiler.addSource("/@memory/main.typ", source);
+    stage = "resume compilation";
+    const output = await compiler.compile({
+      mainFilePath: "/@memory/main.typ",
+      root: "/@memory",
+      inputs: {},
+      format: CompileFormatEnum.pdf,
+      diagnostics: "full",
+    });
+    if (!output.result) {
+      const errors = output.diagnostics?.filter((item) => item.severity === "error").map((item) => item.message);
+      throw new Error(errors?.join("\n") || "Typst could not render this resume.");
+    }
+    return output.result;
+  } catch (error) {
+    if (error instanceof TypstStageError) throw error;
+    throw new TypstStageError(stage, error);
   }
-  const response = await fetch(assetUrl(`adapters/${request.template}.typ`));
-  if (!response.ok) throw new Error(`Could not load the ${request.template} template.`);
-  const data = JSON.stringify(JSON.stringify(adaptResume(request.resume)));
-  const source = `#let data = json(bytes(${data}))\n${await response.text()}`;
-  const compiler = await getCompiler();
-  compiler.addSource("/@memory/main.typ", source);
-  const output = await compiler.compile({
-    mainFilePath: "/@memory/main.typ",
-    root: "/@memory",
-    inputs: {},
-    format: CompileFormatEnum.pdf,
-    diagnostics: "full",
-  });
-  if (!output.result) {
-    const errors = output.diagnostics?.filter((item) => item.severity === "error").map((item) => item.message);
-    throw new Error(errors?.join("\n") || "Typst could not render this resume.");
-  }
-  return output.result;
 }
 
 async function processQueue() {
@@ -146,6 +185,7 @@ async function processQueue() {
             clientId,
             id: request.id,
             message: error instanceof Error ? error.message : "Typst could not render this resume.",
+            stack: error instanceof Error ? error.stack : undefined,
           });
           latestRequest.delete(clientId);
         }

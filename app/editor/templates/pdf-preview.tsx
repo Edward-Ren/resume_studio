@@ -33,10 +33,10 @@ export function PdfPreview({ url, firstPageOnly = false }: { url: string; firstP
     async function render() {
       let phase = "loading PDF.js";
       try {
-        const pdfjs = await import("pdfjs-dist");
+        const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
         if (disposed) return;
         phase = "initializing the PDF.js worker";
-        pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
         phase = "loading the PDF";
         loadingTask = pdfjs.getDocument({ url });
         pdf = await loadingTask.promise;

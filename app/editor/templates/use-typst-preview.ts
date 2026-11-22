@@ -5,7 +5,7 @@ import type { ResumeData } from "../resume-data";
 
 type WorkerResponse =
   | { type: "result"; clientId: string; id: number; pdf: Uint8Array }
-  | { type: "error"; clientId: string; id: number; message: string };
+  | { type: "error"; clientId: string; id: number; message: string; stack?: string };
 type WorkerCallback = (response: WorkerResponse) => void;
 
 let renderWorker: Worker | undefined;
@@ -23,7 +23,7 @@ function getRenderWorker() {
     renderWorker.onerror = (event) => {
       const error = event.message || "The Typst worker stopped unexpectedly.";
       for (const [id, callback] of callbacks) {
-        callback({ type: "error", clientId: "", id, message: error });
+        callback({ type: "error", clientId: "", id, message: error, stack: event.error instanceof Error ? event.error.stack : undefined });
       }
       callbacks.clear();
     };
@@ -47,7 +47,8 @@ export function useTypstPreview(template: string, resume: ResumeData, ready: boo
       callbacks.set(requestId, (response) => {
         if (controller.signal.aborted) return;
         if (response.type === "error") {
-          setResult({ key, url: "", error: `Typst compilation failed: ${response.message}` });
+          if (response.stack) console.error(response.message, response.stack);
+          setResult({ key, url: "", error: response.message });
           return;
         }
         const buffer = new ArrayBuffer(response.pdf.byteLength);
