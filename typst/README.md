@@ -1,12 +1,10 @@
 # Original Typst templates
 
-Run `npm run setup:typst` once to install the official **Typst 0.15.1** CLI
-in the ignored `.typst/` directory. Alternatively set `TYPST_BIN` to its absolute
-path. A Node server capable of spawning the native binary is required; static
-hosting and Edge runtimes cannot render these templates. Run setup on the target
-OS/architecture before building/deploying. The server renderer uses no external
-rendering service or npm dependency. Rendering sends resume data to this application's server, uses stdin,
-does not write resume files, and returns a non-cacheable PDF.
+The templates compile to PDF in the browser using the pinned Typst.ts
+WebAssembly compiler. No Typst CLI, Node rendering server, or external rendering
+service is needed. `npm run predev` and `npm run prebuild` copy the vendored
+adapters, packages and fonts and the WebAssembly module into the ignored
+`public/typst/` directory for local development and static export.
 
 `packages/preview/` contains unmodified archives from
 `https://packages.typst.org/preview/{name}-{version}.tar.gz`, corresponding to
@@ -54,11 +52,10 @@ Font Awesome 6 come from [Toy CV's original font assets](https://github.com/ToyH
 including their licenses. Open Sans comes from [Europass's original font assets](https://github.com/Raskolny/europass-cv/tree/main/fonts)
 with its Apache-2.0 license. Font Awesome 6 is required by Toy CV's original icon ligatures.
 
-**Georgia must be installed on the server** for readable-classic. It is present
-on Windows here and is not redistributed. On another host install a licensed
-copy or set `TYPST_FONT_PATHS` to its directory. Missing required fonts produce
-an explicit error rather than silently substituting fonts. Additional scripts
-such as CJK may require appropriate system fonts.
+Georgia is not redistributed. `readable-classic` falls back to the compiler's
+Libertinus Serif when Georgia is unavailable. The open fonts listed above are
+loaded from this repository's static assets; the browser does not need system
+font access. Additional scripts such as CJK may require appropriate fonts.
 
 ## Data bindings and fidelity
 
@@ -78,9 +75,9 @@ settings; its prose `eval` is avoided to keep user text literal. Modern-cv uses
 the first original font fallback, Source Sans 3.
 Native page sizes, spacing, colors and typography are retained.
 
-The five additional packages compile with the existing Typst 0.15.1: Vivid and
-Neat require 0.13.0, Toy 0.13.1, AltaCV and Europass 0.15.0. Their exact pinned
-dependencies are vendored; no compiler or npm dependency upgrade is needed.
+The five additional packages' exact pinned dependencies are vendored. All ten
+Typst templates are covered by `npm run test:templates`, including plugin-backed
+templates, photos, empty resumes, literal special characters and long resumes.
 Vivid, Neat, Toy and AltaCV use the upstream starter configuration. Europass
 uses its original defaults. Vivid's empty intro reserves clearance for its
 overhanging portrait; Toy's populated sidebar sections use normal paragraph spacing.
@@ -101,9 +98,7 @@ Preview uses PDF.js to draw the generated PDF as clean canvas pages; Download
 saves the original PDF bytes. PDF.js is a preview-only dependency and its worker
 is bundled locally. No embedded browser PDF viewer is required.
 Stale rendering responses cannot enable download or overwrite a newer preview.
-Rendering is debounced 350 ms, limited to 30 seconds and a 200,000-character
-text payload, plus at most 200,000 characters for the optional photo. Very
-long/unbreakable content remains subject to upstream layout rules.
+Rendering is debounced 350 ms and stale jobs are discarded. Very long or
+unbreakable content remains subject to upstream layout rules.
 
-Run the app, then `npm run test:templates` for normal, empty, special-character,
-long-resume and invalid-request coverage. `TEST_BASE_URL` selects another server.
+The Typst compiler runs in a worker so compilation does not block editor input.

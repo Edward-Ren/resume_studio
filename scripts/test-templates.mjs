@@ -1,37 +1,120 @@
 import assert from "node:assert/strict";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { readFileSync } from "node:fs";
+import { CompileFormatEnum } from "@myriaddreamin/typst.ts/compiler";
+import { createTypstCompiler, MemoryAccessModel } from "@myriaddreamin/typst.ts";
+import { loadFonts, withAccessModel, withPackageRegistry } from "@myriaddreamin/typst.ts/options.init";
 
-const base = process.env.TEST_BASE_URL || "http://localhost:3000";
+const root = fileURLToPath(new URL("../", import.meta.url));
 const templates = ["readable-classic", "academicv", "modern-cv", "cobalt-cv", "typographic-resume", "vivid-cv", "toy-cv", "altacv", "neat-cv", "rasko-europass"];
-const entry = { id: "one", title: "Engineer", organization: "Example", dates: "2024 – Present", description: "• Delivered features\n• Reviewed code" };
-const normal = { name: "Alex Morgan", email: "alex@example.com", phone: "+1 202 555 0142", location: "Sample City", education: [entry], experience: [entry], projects: [entry], skills: "Languages: TypeScript\nUncategorized skill" };
-const empty = { name: "", email: "", phone: "", location: "", education: [], experience: [], projects: [], skills: "" };
-const photo = `data:image/jpeg;base64,${readFileSync(new URL("../typst/packages/preview/vivid-cv/0.2.0/example/photo.jpg", import.meta.url)).toString("base64")}`;
-const special = { ...empty, name: 'Zoë #read("secret") [text] $100 \\u0041', experience: [{ ...entry, title: "", organization: "", dates: "", description: '#panic("must remain literal")\nQuotes " \\ * _ @ < > & é' }] };
-const long = { ...normal, experience: Array.from({ length: 24 }, (_, i) => ({ ...entry, id: String(i), title: `Role ${i}`, description: `${entry.description}\n${"Long description with wrapping text. ".repeat(12)}` })) };
-const render = (body) => fetch(`${base}/api/resume`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const memory = new MemoryAccessModel();
 
-for (const template of templates) {
-  test(`${template}: normal, empty, literal text, multi-page data and photo`, async () => {
-    for (const resume of [normal, empty, special, long, { ...normal, photo }]) {
-      const response = await render({ template, resume });
-      assert.equal(response.status, 200, await response.clone().text().then((v) => v.slice(0, 250)));
-      assert.equal(response.headers.get("content-type"), "application/pdf");
-      assert.equal(response.headers.get("cache-control"), "no-store");
-      const pdf = Buffer.from(await response.arrayBuffer());
-      assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
-      assert.ok(pdf.length > 1000);
-    }
-  });
+async function addTree(directory, virtualPath) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const sourcePath = path.join(directory, entry.name);
+    const destination = `${virtualPath}/${entry.name}`;
+    if (entry.isDirectory()) await addTree(sourcePath, destination);
+    else memory.insertFile(destination, new Uint8Array(await readFile(sourcePath)), new Date());
+  }
 }
 
-test("reject invalid data and unregistered template paths", async () => {
-  for (const body of [{ template: "../secret", resume: normal }, { template: templates[0], resume: {} }, null]) {
-    assert.equal((await render(body)).status, 400);
+async function getFiles(directory) {
+  const files = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const file = path.join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...await getFiles(file));
+    else files.push(file);
   }
-  assert.equal((await render({ template: templates[0], resume: { ...normal, skills: "x".repeat(200_001) } })).status, 413);
-  for (const photo of [null, "https://example.com/photo.jpg", "data:image/svg+xml;base64,AAAA", "data:image/jpeg;base64," + "A".repeat(200_001)]) {
-    assert.equal((await render({ template: templates[0], resume: { ...normal, photo } })).status, 400);
+  return files;
+}
+
+const packageDirectory = path.join(root, "typst", "packages", "preview");
+await addTree(packageDirectory, "/@memory/packages/preview");
+const fonts = await Promise.all((await getFiles(path.join(root, "typst", "fonts")))
+  .filter((file) => /\.(?:ttf|otf)$/i.test(file))
+  .map(async (file) => new Uint8Array(await readFile(file))));
+const packageRoots = new Set();
+for (const name of await readdir(packageDirectory, { withFileTypes: true })) {
+  if (!name.isDirectory()) continue;
+  for (const version of await readdir(path.join(packageDirectory, name.name), { withFileTypes: true })) {
+    if (version.isDirectory()) packageRoots.add(`packages/preview/${name.name}/${version.name}`);
+  }
+}
+const packageRegistry = {
+  resolve(spec) {
+    const packageRoot = `packages/${spec.namespace}/${spec.name}/${spec.version}`;
+    return packageRoots.has(packageRoot) ? `/@memory/${packageRoot}` : undefined;
+  },
+};
+const compiler = createTypstCompiler();
+await compiler.init({
+  beforeBuild: [
+    withAccessModel(memory),
+    withPackageRegistry(packageRegistry),
+    loadFonts(fonts, { assets: false }),
+  ],
+});
+
+const entry = { title: "Engineer", organization: "Example", dates: "2024 – Present", bullets: ["Delivered features", "Reviewed code"] };
+const normal = {
+  firstName: "Alex", lastName: "Morgan", name: "Alex Morgan", email: "alex@example.com",
+  phone: "+1 202 555 0142", location: "Sample City", contact: ["+1 202 555 0142", "alex@example.com", "Sample City"],
+  sections: [
+    { key: "education", label: "Education", entries: [{ ...entry, title: "Degree", organization: "University" }] },
+    { key: "experience", label: "Work Experience", entries: [entry] },
+    { key: "projects", label: "Projects", entries: [{ ...entry, title: "Project" }] },
+  ],
+  skillLines: [{ label: "Languages", value: "TypeScript" }, { label: "", value: "Problem solving" }],
+  photo: null,
+};
+const empty = {
+  ...normal, firstName: "Your", lastName: "Name", name: "Your Name", email: "", phone: "", location: "",
+  contact: [], sections: [], skillLines: [],
+};
+const special = {
+  ...normal,
+  name: 'Zoë #read("secret") [text] $100 \\u0041',
+  experience: [{ ...entry, title: "", organization: "", dates: "", bullets: ['#panic("must remain literal")', 'Quotes " \\ * _ @ < > & é'] }],
+};
+const long = {
+  ...normal,
+  sections: normal.sections.map((section) => ({
+    ...section,
+    entries: Array.from({ length: 24 }, (_, index) => ({
+      ...entry,
+      title: `Role ${index}`,
+      bullets: [`Long description with wrapping text. `.repeat(12)],
+    })),
+  })),
+};
+const photo = {
+  ...normal,
+  photo: Array.from(await readFile(path.join(root, "typst", "packages", "preview", "vivid-cv", "0.2.0", "example", "photo.jpg"))),
+};
+
+async function compile(template, resume) {
+  const adapter = await readFile(path.join(root, "typst", "adapters", `${template}.typ`), "utf8");
+  const source = `#let data = json(bytes(${JSON.stringify(JSON.stringify(resume))}))\n${adapter}`;
+  compiler.addSource("/@memory/main.typ", source);
+  const output = await compiler.compile({
+    mainFilePath: "/@memory/main.typ",
+    root: "/@memory",
+    inputs: {},
+    format: CompileFormatEnum.pdf,
+    diagnostics: "full",
+  });
+  assert.ok(output.result, `${template}: ${JSON.stringify(output.diagnostics)}`);
+  const pdf = Buffer.from(output.result);
+  assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
+  assert.ok(pdf.length > 1000);
+}
+
+test("all Typst templates compile normal, empty, literal, long, and photo resumes to PDF", async () => {
+  for (const template of templates) {
+    for (const resume of [normal, empty, special, long, photo]) {
+      await compile(template, resume);
+    }
   }
 });

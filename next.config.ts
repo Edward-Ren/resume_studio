@@ -1,15 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  outputFileTracingIncludes: {
-    "/api/resume": ["./typst/**/*", "./.typst/*"],
+  output: "export",
+  trailingSlash: true,
+  ...(process.env.GITHUB_PAGES === "true" ? { basePath: "/resume_studio" } : {}),
+  env: {
+    NEXT_PUBLIC_BASE_PATH: process.env.GITHUB_PAGES === "true" ? "/resume_studio" : "",
   },
-  /* config options here */
   experimental: {
     agentFeedback: true,
   },
-  cacheComponents: true,
-  partialPrefetching: true,
   turbopack: {
     rules: {
       "*.css": {

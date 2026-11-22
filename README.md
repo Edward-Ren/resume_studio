@@ -6,7 +6,6 @@ A local-first resume builder using Next.js, React, TypeScript, and Tailwind CSS.
 
 ```sh
 npm install
-npm run setup:typst
 npm run dev
 ```
 
@@ -19,21 +18,23 @@ It is resized locally and shown only in templates with native photo support.
 
 Eleven templates share the same editor data. Jake's Resume retains browser printing:
 choose Save as PDF, A4, 100% scale, with browser headers/footers off.
-The ten original Typst templates preview and download the same generated PDF.
-PDF.js draws clean page previews without embedded browser controls. The homepage
-gallery links to `/editor?template=...`; saved content is preserved. On desktop,
+The ten Typst templates compile in a WebAssembly worker in your browser. PDF.js
+previews the generated PDF, and Download saves those same PDF bytes. Resume data
+stays in this browser; no render server or external service is used. On desktop,
 the editor and preview scroll independently beneath the fixed header and controls.
-Typst rendering sends your data to this app's server; localStorage is unchanged.
-See [Typst setup, fonts and attribution](typst/README.md) for deployment details.
-Georgia must be installed for readable-classic; it is not bundled.
+See [Typst fonts, packages and attribution](typst/README.md).
+
+`npm run build` creates a static export in `out/`. The GitHub Actions workflow
+publishes it to GitHub Pages under `/resume_studio/`; the app remains in this
+repository. Typst assets are copied into the ignored `public/typst/` folder before
+development and builds.
 
 ## Checks
 
 ```sh
 npm run lint
-npm run build
-# With the app running:
 npm run test:templates
+npm run build
 ```
 
 Manually verify the homepage link, live field edits, add/delete entries, refresh

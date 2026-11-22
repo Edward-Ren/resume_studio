@@ -6,9 +6,12 @@ export function adaptResume(resume: ResumeData) {
   const lines = (value: string) => value.split(/\r?\n/).map((line) =>
     line.trim().replace(/^(?:[•●▪]|[-*]\s)\s*/, "")).filter(Boolean);
   const words = resume.name.trim().split(/\s+/);
+  const photoBytes = resume.photo
+    ? Array.from(atob(resume.photo.split(",")[1]), (character) => character.charCodeAt(0))
+    : null;
   return {
     ...resume,
-    photo: resume.photo ? Array.from(Buffer.from(resume.photo.split(",")[1], "base64")) : null,
+    photo: photoBytes,
     firstName: words.shift() || "Your Name",
     lastName: words.join(" "),
     name: resume.name.trim() || "Your Name",

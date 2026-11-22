@@ -3,14 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "setup:typst": "node scripts/setup-typst.mjs",
+    "predev": "node scripts/prepare-typst-assets.mjs",
+    "prebuild": "node scripts/prepare-typst-assets.mjs",
     "test:templates": "node --test scripts/test-templates.mjs",
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
     "lint": "eslint"
   },
   "dependencies": {
+    "@myriaddreamin/typst-ts-web-compiler": "0.8.0-rc4",
+    "@myriaddreamin/typst.ts": "0.8.0-rc4",
     "next": "16.4.6",
     "pdfjs-dist": "^6.5.438",
     "react": "19.3.0",
