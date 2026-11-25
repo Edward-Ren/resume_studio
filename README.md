@@ -12,6 +12,15 @@ The public demo is deployed from `main` through GitHub Actions and GitHub Pages.
 
 ![Resume Studio editor and Classic Tech preview](public/resume-studio-editor.png)
 
+## Create and Export a Resume
+
+1. Open the demo and select **Use Template** on a layout you like.
+2. Replace the sample details and add entries for your education, experience, and projects. The preview updates as you edit.
+3. Use the template selector below the preview to compare layouts; your edits are saved automatically in this browser.
+4. Select **Download PDF** when your resume is ready. Classic Tech opens the browser's print dialog; choose **Save as PDF** there.
+
+Resume content stays in the current browser and is not backed up or synced. On a shared device, clear this site's data when you're finished; doing so removes the saved resume.
+
 ## Why Resume Studio?
 
 Resume builders often separate editing, template selection, and export into different steps. Some also require an account before users can evaluate the result. Resume Studio keeps the workflow deliberately small: one shared data model feeds every template, template changes do not reset the form, and rendering happens in the browser.
